@@ -5,6 +5,14 @@
 
 TIFF decoding and encoding library in pure Rust
 
+## Fork
+
+This is a fork of image-tiff that allows reading linear DNG files compressed with lossless JPEG.
+
+The zune-jpeg crate that replaced the older jpeg library does not support lossless JPEG, so it was added back when the JPEG in the tiff is lossless.
+
+The LinearRaw photometric type was added.
+
 ## Supported
 
 ### Features
