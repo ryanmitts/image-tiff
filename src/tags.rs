@@ -220,6 +220,8 @@ pub enum PhotometricInterpretation(u16) {
     CMYK = 5,
     YCbCr = 6,
     CIELab = 8,
+    // DNG-specific values
+    LinearRaw = 34892,
 }
 }
 

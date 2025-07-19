@@ -335,6 +335,15 @@ impl Image {
                     ),
                 )),
             },
+            // DNG LinearRaw (enhanced image data) - treated like RGB since it's demosaiced
+            PhotometricInterpretation::LinearRaw => match self.samples {
+                3 => Ok(ColorType::RGB(self.bits_per_sample)),
+                4 => Ok(ColorType::RGBA(self.bits_per_sample)),
+                _ => Ok(ColorType::Multiband {
+                    bit_depth: self.bits_per_sample,
+                    num_samples: self.samples,
+                }),
+            },
             PhotometricInterpretation::CMYK => match self.samples {
                 4 => Ok(ColorType::CMYK(self.bits_per_sample)),
                 5 => Ok(ColorType::CMYKA(self.bits_per_sample)),
@@ -431,21 +440,32 @@ impl Image {
                 let mut jpeg_data = Vec::new();
                 jpeg_reader.read_to_end(&mut jpeg_data)?;
 
-                let mut decoder = zune_jpeg::JpegDecoder::new(jpeg_data);
-                let mut options: zune_core::options::DecoderOptions = Default::default();
+                // Check if this is lossless JPEG by looking for SOF3 marker (0xFFC3)
+                let is_lossless = jpeg_data.windows(2).any(|window| window == [0xFF, 0xC3]);
+                
+                if is_lossless {
+                    // Use jpeg-decoder for lossless JPEG
+                    use std::io::Cursor;
+                    let mut decoder = jpeg::Decoder::new(Cursor::new(&jpeg_data));
+                    let decoded_data = decoder.decode()?;
+                    Box::new(Cursor::new(decoded_data))
+                } else {
+                    // Use zune-jpeg for standard JPEG
+                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg_data);
+                    let mut options: zune_core::options::DecoderOptions = Default::default();
 
-                // Disable color conversion by setting the output colorspace to the input
-                // colorspace.
-                decoder.decode_headers()?;
-                if let Some(colorspace) = decoder.get_input_colorspace() {
-                    options = options.jpeg_set_out_colorspace(colorspace);
+                    // Disable color conversion by setting the output colorspace to the input
+                    // colorspace.
+                    decoder.decode_headers()?;
+                    if let Some(colorspace) = decoder.get_input_colorspace() {
+                        options = options.jpeg_set_out_colorspace(colorspace);
+                    }
+
+                    decoder.set_options(options);
+
+                    let data = decoder.decode()?;
+                    Box::new(Cursor::new(data))
                 }
-
-                decoder.set_options(options);
-
-                let data = decoder.decode()?;
-
-                Box::new(Cursor::new(data))
             }
             method => {
                 return Err(TiffError::UnsupportedError(

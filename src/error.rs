@@ -219,5 +219,11 @@ impl From<zune_jpeg::errors::DecodeErrors> for TiffError {
     }
 }
 
+impl From<jpeg::Error> for TiffError {
+    fn from(err: jpeg::Error) -> Self {
+        TiffError::FormatError(TiffFormatError::CompressedDataCorrupt(err.to_string()))
+    }
+}
+
 /// Result of an image decoding/encoding process
 pub type TiffResult<T> = Result<T, TiffError>;
